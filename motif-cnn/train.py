@@ -17,7 +17,8 @@ flags.DEFINE_integer('seed', 4, 'Random seed')
 flags.DEFINE_integer('conv_layers', 3, 'Number of convolution-pooling layers.')
 flags.DEFINE_string('hidden_sizes', '64,32,10', 'Hidden layer sizes')
 flags.DEFINE_integer('attention_type', 0, 'Type of attention, 0 for dot product, 1 for single weight')
-flags.DEFINE_integer('epochs', 100, 'Number of epochs to train.')
+# flags.DEFINE_integer('epochs', 100, 'Number of epochs to train.')
+flags.DEFINE_integer('epochs', 1, 'Number of epochs to train.')
 flags.DEFINE_float('learning_rate', 0.005, 'Initial learning rate.')
 flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('dropout_fc', 0.5, 'Dropout rate for FC layer (1 - keep probability).')
@@ -78,6 +79,8 @@ sess.run(tf.global_variables_initializer())
 
 # Train model
 cost_val = []
+n_epoch = 0
+tts = []
 for epoch in range(FLAGS.epochs):
     # Construct feed dictionary
     feed_dict = construct_feed_dict(features, support, y_train, train_mask, placeholders)
@@ -95,20 +98,31 @@ for epoch in range(FLAGS.epochs):
     macro_f1_v, micro_f1_v = compute_f1(pred_val, y_val, val_mask)
     cost_val.append(cost)
     # Print results
+    tt = e - s
+    tts.append(tt)
     print('Epoch:', '%04d' % (epoch + 1), 'train_loss=', '{:.5f}'.format(outs[0]),
           'train_micro_f1=', '{:.5f}'.format(micro_f1_t),
-          'train_macro_f1=', '{:.5f}'.format(macro_f1_t), 'time=', '{:.5f}'.format(e - s))
+          'train_macro_f1=', '{:.5f}'.format(macro_f1_t), 'time=', '{:.5f}'.format(tt))
     print('val_loss=', '{:.5f}'.format(cost),
           'val_micro_f1=', '{:.5f}'.format(micro_f1_v),
           'val_macro_f1=', '{:.5f}'.format(macro_f1_v))
+    n_epoch += 1
     if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping + 1): -1]):
         print('Early stopping...')
         break
+
+print("# of epochs: {}, avg time per epoch: {:.3f}".format(n_epoch, sum(tts)/n_epoch))
 print('Optimization Finished!')
 
 cost, acc, pred_test = evaluate(features, support, y_test, test_mask, placeholders)
 macro_f1, micro_f1 = compute_f1(pred_test, y_test, test_mask)
+print("Total number of layers: {}".format(len(model.layers)))
+
+with sess.as_default():
+    for layer in model.layers:
+        print(layer.vars.keys())
 
 print('Test set results:', 'cost=', '{:.5f}'.format(cost),
       'micro_f1=', '{:.5f}'.format(micro_f1),
-      'macro_f1=', '{:.5f}'.format(macro_f1))
+      'macro_f1=', '{:.5f}'.format(macro_f1),
+      'accuracy = {:.3f}'.format(acc))
